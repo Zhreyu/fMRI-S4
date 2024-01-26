@@ -18,7 +18,7 @@ import math
 import torch
 
 from einops import rearrange
-from benchmark import utils
+from . import benchmark as utils
 
 import os
 import pykeops
