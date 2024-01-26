@@ -6,6 +6,7 @@ scipy
 pandas
 sktime
 matplotlib
+tsaug
 tqdm
 rich
 pytorch-lightning
