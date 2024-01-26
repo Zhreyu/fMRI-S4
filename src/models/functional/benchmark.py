@@ -149,7 +149,36 @@ def benchmark_fwd_bwd(
             **kwinputs,
         ),
     )
+def convert_data(*args):
+    """
+    Converts data to appropriate device and format if necessary.
+    Args:
+        *args: Data items to convert.
+    Returns:
+        Converted data items.
+    """
+    converted = []
+    for arg in args:
+        if isinstance(arg, torch.Tensor):
+            arg = arg.to(device='cuda' if torch.cuda.is_available() else 'cpu')
+        converted.append(arg)
+    return converted
 
+def compare_outputs(*outputs, atol=1e-5, rtol=1e-3):
+    """
+    Compares the outputs of different functions to check for correctness.
+    Args:
+        *outputs: Outputs from different functions or implementations.
+        atol: Absolute tolerance for comparison.
+        rtol: Relative tolerance for comparison.
+    """
+    base_output = outputs[0]
+    for i, output in enumerate(outputs[1:]):
+        if not torch.allclose(base_output, output, atol=atol, rtol=rtol):
+            print(f"Output {i+1} differs from the base output")
+            return False
+    print("All outputs are consistent.")
+    return True
 
 def benchmark_all(
     fn,
