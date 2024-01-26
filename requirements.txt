@@ -1,7 +1,9 @@
 numpy
+captum
+lime
+psycopg2
 scipy
 pandas
-scikit-learn
 sktime
 matplotlib
 tqdm
@@ -18,4 +20,4 @@ cmake
 torchtext
 datasets
 transformers
-pytorch-fast-transformers
+statsmodels
