@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 import argparse
-from datasets import Ukbb, Mddrest, Abide, get_dataset_class
+from datasets import Ukbb, Mddrest, Abide, get_dataset_class, RandomTestDataset
 from model import mymodel
 import torch.backends.cudnn as cudnn
 from pytorch_lightning import Trainer
@@ -24,6 +24,9 @@ import pandas as pd
 import wandb
 import shutil
 import warnings
+import numpy as np
+import torch
+from torch.utils.data import DataLoader, TensorDataset
 warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser(description='Training ')
@@ -37,7 +40,7 @@ parser.add_argument('--label', default='Diagnosis',  choices=['Sex', 'MDD', 'Dia
 # Scheduler
 parser.add_argument('--patience', default=20, type=float, help='Patience for learning rate scheduler')
 # Dataset
-parser.add_argument('--dataset', default='Abide', choices=['Ukbb', 'Mddrest', 'Abide', 'Jpmdd'], type=str, help='Dataset')
+parser.add_argument('--dataset', default='Abide', choices=['Ukbb', 'Mddrest', 'Abide', 'Jpmdd','RandomTest'], type=str, help='Dataset')
 parser.add_argument('--atlas', default='HO_sub', type=str, help='Parcellation atlas ')
 parser.add_argument('--input_len', default='200', type=int, help='length of the timeseries')
 
@@ -57,6 +60,22 @@ wandb.init('S4Classifier_Mddrest')
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+def prepare_test_loader(n_subjects, n_timepoints, n_rois, batch_size=1, num_workers=1):
+    # Generate random time course (TC) data
+    tc_data = np.random.rand(n_subjects, n_timepoints, n_rois).astype(np.float32)
+    
+    # Generate random labels (0 or 1 for binary classification)
+    labels = np.random.randint(2, size=(n_subjects,)).astype(np.int64)
+    
+    # Convert to PyTorch tensors
+    tc_data_tensor = torch.tensor(tc_data)
+    labels_tensor = torch.tensor(labels)
+    
+    # Create a TensorDataset and DataLoader
+    test_dataset = TensorDataset(tc_data_tensor, labels_tensor)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    
+    return test_loader
 
 def split_train_val(train, val_split):
     train_len = int(len(train) * (1.0-val_split))
@@ -68,26 +87,40 @@ def split_train_val(train, val_split):
     return train, val
 
 
-def prepare_kfold_loaders(args, train_df, test_df):
-
-
+def prepare_kfold_loaders(args, train_df=None, test_df=None):
     print(f'==> Preparing {args.dataset} data..')
-    trainval_dataset = get_dataset_class(args.dataset)(train_df, args.atlas, args.input_len)
-    trainset, valset = split_train_val(trainval_dataset, val_split=0.2)
-    nrois = trainval_dataset.nrois
-    testset =  get_dataset_class(args.dataset)(test_df, args.atlas, args.input_len)
+    if args.dataset == 'RandomTest':
+        # Assuming 116 ROIs as an example; replace with the correct number for your model
+        nrois = 116  # Directly specify the number of ROIs
+        # Generate a random DataLoader for training/validation
+        trainval_loader = prepare_test_loader(100, args.input_len, nrois, args.batch_size, args.num_workers)
+        # Generate a random DataLoader for testing
+        test_loader = prepare_test_loader(25, args.input_len, nrois, 5, args.num_workers)  # Adjust the number of subjects as needed
+    else:
+        trainval_dataset = get_dataset_class(args.dataset)(train_df, args.atlas, args.input_len)
+        trainset, valset = split_train_val(trainval_dataset, val_split=0.2)
+        nrois = trainval_dataset.nrois
+        testset = get_dataset_class(args.dataset)(test_df, args.atlas, args.input_len)
+        # Dataloaders for real datasets
+        trainval_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+        test_loader = torch.utils.data.DataLoader(testset, batch_size=5, shuffle=False, num_workers=args.num_workers, drop_last=True)
 
-    # Dataloaders
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    valloader = torch.utils.data.DataLoader(valset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=5, shuffle=False, num_workers=args.num_workers, drop_last=True)
-
-    return trainloader, valloader, testloader,nrois
+    # Note: For RandomTest, trainval_loader is both the training and validation loader
+    return trainval_loader, trainval_loader, test_loader, nrois
 
 
 def train_kfold(args):
 
-    df = pd.read_csv(f'./csvfiles/{args.dataset}.csv')
+    if args.dataset == 'RandomTest':
+        # No need to read from CSV, create a random DataFrame
+        # Assuming binary classification, with 0 and 1 as class labels
+        df = pd.DataFrame({
+            'Diagnosis': np.random.randint(0, 2, size=100)
+        })
+        # Other code related to skf and data preparation will go here
+        # ...
+    else:
+        df = pd.read_csv(f'./csvfiles/{args.dataset}.csv')
     skf = model_selection.StratifiedKFold(n_splits=5, random_state=69, shuffle=True)
     skf.get_n_splits(df, df[args.label])
     aucs = []
@@ -106,7 +139,7 @@ def train_kfold(args):
         trainloader, valloader, testloader, nrois = prepare_kfold_loaders(args, trainval_df, test_df)
         model_params = {'n_conv_layers': args.n_conv_layers, 'n_s4_layers': args.n_s4_layers, 'd_model': args.d_model, 'd_input': nrois, 'T':args.input_len, 'channels':args.channels, 'clf':args.clf, 'lr':args.lr}
         trainer = Trainer(accelerator="gpu", devices=1, max_epochs=args.epochs, check_val_every_n_epoch=1, log_every_n_steps=5,
-         callbacks=[ModelCheckpoint(monitor='val_acc', mode='max'), EarlyStopping(monitor='val_acc', patience=15, verbose=True, mode='max')])
+         callbacks=[ModelCheckpoint(monitor='val_acc', mode='max'), EarlyStopping(monitor='val_acc', patience=15, verbose=True, mode='max')],num_sanity_val_steps=0)
         network = mymodel(model_params).to(device)
         cudnn.benchmark = True
         print(f'Training fold : {k}')
