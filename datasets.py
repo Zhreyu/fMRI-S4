@@ -7,10 +7,12 @@ from sklearn.preprocessing import StandardScaler
 from tsaug import Resize
 
 
-DATASETS = ['Mddrest','Abide', 'Ukbb', 'Jpmdd', 'Synth']
+DATASETS = ['Mddrest', 'Abide', 'Ukbb', 'Jpmdd', 'Synth', 'RandomTest']
 
 def get_dataset_class(dataset_name):
     """Return the dataset class with the given name."""
+    if dataset_name == 'RandomTest':
+      return RandomTestDataset
     if dataset_name not in globals():
         raise NotImplementedError("Dataset not found: {}".format(dataset_name))
     return globals()[dataset_name]
@@ -91,7 +93,19 @@ class Ukbb(Abstract_Dataset):
                 self.cc_data[i] = cc
                 self.labels[i] = self.data_info[self.label].iloc[i]
 
-
+class RandomTestDataset(Abstract_Dataset):
+    def __init__(self, n_samples=100, ntime=200, nrois=116):
+        self.total_subjects = n_samples
+        self.ntime = ntime
+        self.nrois = nrois
+        self.tc_data = np.random.randn(self.total_subjects, self.ntime, self.nrois).astype(np.float32)
+        self.labels = np.random.randint(0, 2, self.total_subjects).astype(np.int64)
+    
+    def __getitem__(self, index):
+        return torch.tensor(self.tc_data[index]), torch.tensor(self.labels[index])
+    
+    def __len__(self):
+        return self.total_subjects
 
 class Mddrest(Abstract_Dataset):
 
