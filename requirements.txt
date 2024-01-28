@@ -9,7 +9,7 @@ matplotlib
 tsaug
 tqdm
 rich
-pytorch-lightning
+pytorch-lightning==1.9.5
 hydra-core
 munch
 omegaconf
