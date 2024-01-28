@@ -737,12 +737,12 @@ class HippoSSKernel(nn.Module):
                 )
 
     def forward(self, state=None, L=None):
-        print("Entered Forward method in HippoSSKernal")
+        #print("Entered Forward method in HippoSSKernal")
         k, k_state = self.kernel(state=state, rate=self.rate, L=L)
-        print("K shape",k.shape)
-        print("K state shape",k_state.shape)
+        #print("K shape",k.shape)
+        #print("K state shape",k_state.shape)
         k_state = None if k_state is None else k_state.float()
-        print("Exiting forward of HippoSSkernal")
+        #print("Exiting forward of HippoSSkernal")
         return k.float(), k_state
 
     @torch.no_grad()
