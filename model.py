@@ -103,20 +103,20 @@ class mymodel(pl.LightningModule):
 
 
     def forward(self, x):
-        print("Entering forward method...")
+       # print("Entering forward method...")
         x = self.conv_encoder(x)
-        print(f"After conv_encoder, shape of x: {x.shape}")
+       # print(f"After conv_encoder, shape of x: {x.shape}")
 
         for idx, (layer, norm, dropout) in enumerate(zip(self.s4_layers, self.norms, self.dropouts)):
             z = x
             z, state = layer(z, state=self._state)
             self._state = state
-            print(f"After S4 layer {idx}, shape of z: {z.shape}, shape of state: {state.shape}")
+           # print(f"After S4 layer {idx}, shape of z: {z.shape}, shape of state: {state.shape}")
 
             z = dropout(z)
             x = z + x
             x = norm(x.transpose(-1, -2)).transpose(-1, -2)
-            print(f"After norm and dropout in layer {idx}, shape of x: {x.shape}")
+           # print(f"After norm and dropout in layer {idx}, shape of x: {x.shape}")
 
         if self.clff == "A":
             x = F.relu(self.classifier(F.relu(x, inplace=True)))
@@ -125,7 +125,7 @@ class mymodel(pl.LightningModule):
             x = x.mean(dim=-1).squeeze(-1)
             y = self.classifier(x)
 
-        print(f"Final output shape: {y.shape}")
+       # print(f"Final output shape: {y.shape}")
         return y
 
     def configure_optimizers (self):
