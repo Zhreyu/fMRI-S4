@@ -671,7 +671,7 @@ class HippoSSKernel(nn.Module):
         deterministic=False,
         trainable=None, # Dictionary of options to train various HiPPO parameters
         lr=None, # Hook to set LR of hippo parameters differently
-        mode="nplr",  # 'slow' for complex naive version, 'real' for real naive version
+        mode="real",  # 'slow' for complex naive version, 'real' for real naive version
         length_correction=True, # Multiply by I-A|^L after initialization; can be turned off for initialization speed
         hurwitz=True,
         tie_state=False, # Tie parameters of HiPPO ODE across the H features
