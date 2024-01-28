@@ -106,38 +106,38 @@ class S4(nn.Module):
 
 
     def forward(self, u, state=None, **kwargs):
-        print("Entering S4 forward method")
+        #print("Entering S4 forward method")
         if not self.transposed: 
             u = u.transpose(-1, -2)
         L = u.size(-1)
-        print("Input shape after potential transpose:", u.shape)
+       # print("Input shape after potential transpose:", u.shape)
 
         # Compute SS Kernel
         k, k_state = self.kernel(L=L, state=state)
-        print("Kernel shape:", k.shape, "Kernel state shape:", k_state.shape if k_state is not None else "None")
+        #print("Kernel shape:", k.shape, "Kernel state shape:", k_state.shape if k_state is not None else "None")
 
         # Convolution
         if self.bidirectional:
             k0, k1 = rearrange(k, '(s c) h l -> s c h l', s=2)
             k = F.pad(k0, (0, L)) + F.pad(k1.flip(-1), (L, 0))
-        print("Kernel shape after bidirectional processing:", k.shape)
+       # print("Kernel shape after bidirectional processing:", k.shape)
 
         k_f = torch.fft.rfft(k, n=2*L)
         u_f = torch.fft.rfft(u, n=2*L)
         y_f = contract('bhl,chl->bchl', u_f, k_f)
         y = torch.fft.irfft(y_f, n=2*L)[..., :L]
-        print("After convolution, y shape:", y.shape)
+       # print("After convolution, y shape:", y.shape)
 
         # Compute D term in state space equation - essentially a skip connection
         y = y + contract('bhl,ch->bchl', u, self.D)
-        print("After adding D term, y shape:", y.shape)
+       # print("After adding D term, y shape:", y.shape)
 
         # Compute state update
         if state is not None:
             assert not self.bidirectional, "Bidirectional not supported with state forwarding"
             y = y + k_state
             next_state = self.kernel.forward_state(u, state)
-            print("After state update, y shape:", y.shape)
+           # print("After state update, y shape:", y.shape)
         else:
             next_state = None
 
@@ -145,21 +145,21 @@ class S4(nn.Module):
         if self.hyper:
             y, yh = rearrange(y, 'b (s c) h l -> s b c h l', s=2)
             y = self.hyper_activation(yh) * y
-            print("After hyper-network multiplication, y shape:", y.shape)
+           # print("After hyper-network multiplication, y shape:", y.shape)
 
         y = rearrange(y, '... c h l -> ... (c h) l')
-        print("Before dropout and activation, y shape:", y.shape)
+       # print("Before dropout and activation, y shape:", y.shape)
 
         y = self.dropout(self.activation(y))
-        print("After dropout and activation, y shape:", y.shape)
+       # print("After dropout and activation, y shape:", y.shape)
 
         if not self.transposed: 
             y = y.transpose(-1, -2)
         if self.mix:
             y = self.output_linear(y)
-            print("After output linear layer, y shape:", y.shape)
+           # print("After output linear layer, y shape:", y.shape)
 
-        print("Exiting S4 forward method")
+     #   print("Exiting S4 forward method")
         return y, next_state
 
 
