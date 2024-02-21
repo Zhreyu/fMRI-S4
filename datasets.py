@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from tsaug import Resize
 
 
-DATASETS = ['Mddrest','Abide', 'Ukbb', 'Jpmdd', 'Synth']
+DATASETS = ['Mddrest','Abide', 'Ukbb', 'Jpmdd', 'Synth','EEG']
 
 def get_dataset_class(dataset_name):
     """Return the dataset class with the given name."""
